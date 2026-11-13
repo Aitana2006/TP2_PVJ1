@@ -87,6 +87,33 @@ public class PickItem : MonoBehaviour
         }
     }
 
+    public void PickDirectly(GameObject item)
+    {
+        if (item == null) return;
+        if (item.CompareTag("Item"))
+        {
+            if (currentLeftItem == null)
+            {
+                Pick(item, leftHand, true);
+            }
+            else
+            {
+                Debug.Log("La mano izquierda ya tiene un ítem.");
+            }
+        }
+        else if (item.CompareTag("Weapon"))
+        {
+            if (currentRightItem == null)
+            {
+                Pick(item, rightHand, false);
+            }
+            else
+            {
+                Debug.Log("La mano derecha ya tiene un arma.");
+            }
+        }
+    }
+
     private void Pick(GameObject item, Transform targetHand, bool isLeftHand)
     {
         if (targetHand == null)
