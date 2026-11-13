@@ -73,9 +73,13 @@ public class Attack : MonoBehaviour
     {
         RaycastInfo(offsetGun);
 
-        if (Physics.Raycast(origin, dir, out hit, rayDistance))
+        // Disparo por Raycast: Ignoramos colisionadores propios y usamos máscara de ataque
+        int layerMask = ~(1 << gameObject.layer); // Filtramos la capa del propio jugador
+
+        if (Physics.Raycast(origin, dir, out hit, rayDistance, layerMask, QueryTriggerInteraction.Ignore))
         {
-            if (hit.collider.gameObject != this.gameObject)
+            // Verificación estricta de no autodaño
+            if (hit.collider.gameObject != this.gameObject && hit.collider.transform.root != transform.root)
             {
                 AplyDamage(hit.collider.gameObject);
             }
@@ -94,12 +98,14 @@ public class Attack : MonoBehaviour
             RaycastInfo(offsetSword);
         }
 
-        Collider[] colliders = Physics.OverlapSphere(origin, radius);
+        // Colisionador de ataque cuerpo a cuerpo
+        Collider[] colliders = Physics.OverlapSphere(origin, radius, ~0, QueryTriggerInteraction.Ignore);
         if (colliders.Length > 0)
         {
             foreach (Collider col in colliders)
             {
-                if (col.gameObject != this.gameObject)
+                // Garantizar que no colisione ni dañe al propio jugador ni a sus hijos
+                if (col.gameObject != this.gameObject && col.transform.root != transform.root)
                 {
                     AplyDamage(col.gameObject);
                 }
@@ -122,12 +128,21 @@ public class Attack : MonoBehaviour
 
     private void AplyDamage(GameObject hitObj)
     {
-        if (hitObj == null || hitObj == this.gameObject) return;
+        if (hitObj == null) return;
+
+        // SEGURIDAD: Garantizar al 100% que no haya autodaño
+        if (hitObj == this.gameObject || hitObj.transform.root == transform.root) return;
+
+        // El jugador solo puede dañar a 'Character' (enemigos), nunca a 'Player'
+        if (isPlayer && (hitObj.CompareTag("Player") || hitObj.transform.root.CompareTag("Player"))) return;
+
+        // El enemigo solo puede dañar a 'Player', nunca a otros enemigos
+        if (!isPlayer && (hitObj.CompareTag("Character") || hitObj.transform.root.CompareTag("Character"))) return;
 
         bool targetValid = isPlayer ? hitObj.CompareTag("Character") : hitObj.CompareTag("Player");
         if (targetValid)
         {
-            HealthSystem hs = hitObj.GetComponent<HealthSystem>();
+            HealthSystem hs = hitObj.GetComponent<HealthSystem>() ?? hitObj.GetComponentInParent<HealthSystem>();
             if (hs != null)
             {
                 hs.TakeDamage(damage);

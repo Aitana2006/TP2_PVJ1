@@ -17,6 +17,12 @@ public class playerMovimiento : MonoBehaviour
     private int saltosRestantes;
     private CharacterController controlador;
 
+    [Header("Chequeo de Suelo por Raycast y LayerMask")]
+    [SerializeField] private LayerMask capaSuelo;
+    [SerializeField] private float distanciaRayoSuelo = 0.35f;
+    [SerializeField] private Transform puntoPies;
+    private bool estaEnSuelo = false;
+
     private void Awake()
     {
         controlador = GetComponent<CharacterController>();
@@ -30,11 +36,23 @@ public class playerMovimiento : MonoBehaviour
             else if (Camera.main != null)
                 camara = Camera.main.transform;
         }
+
+        // Si no se asignó en el Inspector, configuramos LayerMask por defecto a Ground y Default
+        if (capaSuelo.value == 0)
+        {
+            capaSuelo = LayerMask.GetMask("Ground", "Default");
+            if (capaSuelo.value == 0) capaSuelo = ~LayerMask.GetMask("Ignore Raycast");
+        }
+        // Excluimos la capa del propio jugador para evitar que el rayo colisione consigo mismo
+        capaSuelo &= ~(1 << gameObject.layer);
     }
 
     void Update()
     {
         if (controlador == null || camara == null) return;
+
+        // Validamos si el personaje está en el suelo proyectando un rayo desde sus pies hacia abajo
+        estaEnSuelo = CheckGroundRaycast();
 
         float Horizontal = UsarGetAxisRaw ? Input.GetAxisRaw("Horizontal") : Input.GetAxis("Horizontal");
         float Vertical = UsarGetAxisRaw ? Input.GetAxisRaw("Vertical") : Input.GetAxis("Vertical");
@@ -52,13 +70,15 @@ public class playerMovimiento : MonoBehaviour
 
         Vector3 movimientoXZ = direccionPlano * velocidadMovimiento;
 
-        if (controlador.isGrounded && velocidadVertical.y < 0)
+        // Si el raycast confirma contacto con el suelo
+        if (estaEnSuelo && velocidadVertical.y < 0)
         {
             velocidadVertical.y = -2f;
             saltosRestantes = maxSaltos; 
         }
 
-        if (Input.GetButtonDown("Jump") && saltosRestantes > 0)
+        // Validación de salto limpia
+        if (Input.GetButtonDown("Jump") && (estaEnSuelo || saltosRestantes > 0))
         {
             velocidadVertical.y = fuerzaSalto;
             saltosRestantes--;
@@ -67,5 +87,21 @@ public class playerMovimiento : MonoBehaviour
         velocidadVertical.y += gravedad * Time.deltaTime;
         Vector3 movimientoTotal = movimientoXZ + velocidadVertical;
         controlador.Move(movimientoTotal * Time.deltaTime);
+    }
+
+    private bool CheckGroundRaycast()
+    {
+        // Origen en los pies del jugador
+        Vector3 origen = puntoPies != null ? puntoPies.position : (transform.position + Vector3.up * 0.15f);
+        float longitudRayo = distanciaRayoSuelo + 0.15f;
+
+        // Proyectamos el rayo hacia el suelo usando LayerMask
+        bool hit = Physics.Raycast(origen, Vector3.down, out RaycastHit hitInfo, longitudRayo, capaSuelo, QueryTriggerInteraction.Ignore);
+
+        // Debug visual en la escena: Verde si toca suelo, Rojo si está en el aire
+        Debug.DrawRay(origen, Vector3.down * longitudRayo, hit ? Color.green : Color.red);
+
+        // Combinamos con controlador.isGrounded como respaldo de estabilidad
+        return hit || controlador.isGrounded;
     }
 }
