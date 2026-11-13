@@ -9,8 +9,8 @@ public class playerMovimiento : MonoBehaviour
 
     [Header("Movimiento")]
     [SerializeField] public float velocidadMovimiento = 10f;
-    [SerializeField] private float fuerzaSalto = 6f;
-    [SerializeField] private float gravedad = -9f;
+    [SerializeField] private float fuerzaSalto = 7f;
+    [SerializeField] private float gravedad = -15f;
     [SerializeField] private int maxSaltos = 2;
 
     [SerializeField] Vector3 velocidadVertical;
@@ -20,6 +20,7 @@ public class playerMovimiento : MonoBehaviour
     private void Awake()
     {
         controlador = GetComponent<CharacterController>();
+        saltosRestantes = maxSaltos;
 
         if (camara == null)
         {

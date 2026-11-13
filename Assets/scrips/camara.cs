@@ -5,13 +5,12 @@ using UnityEngine.InputSystem;
 
 public class camara : MonoBehaviour
 {
-    [SerializeField] public float Sensibilidad = 50f;
+    [SerializeField] public float Sensibilidad = 150f;
     public Transform player;
 
     [Header("limites de la camara")]
-    [SerializeField] float limiteArriba = -25f;
-    [SerializeField] float limiteAbajo = 60f;
-    float rotacionHorinzontal = 0;
+    [SerializeField] float limiteArriba = -80f;
+    [SerializeField] float limiteAbajo = 80f;
     float rotacionVertical = 0;
 
     void Start()
@@ -28,8 +27,6 @@ public class camara : MonoBehaviour
         float valorX = Input.GetAxis("Mouse X") * Sensibilidad * Time.deltaTime;
         float valorY = Input.GetAxis("Mouse Y") * Sensibilidad * Time.deltaTime;
 
-        //guarda el valor y queda en el valor para seguir
-        rotacionHorinzontal += Input.GetAxis("Mouse X") * Sensibilidad * Time.deltaTime;
         rotacionVertical -= valorY;
 
         //lo va a limitar a mover solo a 80 grados y no maree
@@ -46,6 +43,5 @@ public class camara : MonoBehaviour
             //si no tiene asignado nada
             Debug.LogWarning("Por favor asigna el objeto 'player' en el Inspector del componente camara.");
         }
-
     }
 }

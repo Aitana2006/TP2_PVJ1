@@ -11,8 +11,9 @@ public class EnemyAI : MonoBehaviour
     [SerializeField] private AIState currentState = AIState.Patrol;
 
     [Header("Detect Settings")]
-    [SerializeField] private float detectionRadius = 8f;
-    [SerializeField] private float attackRadius = 2f;
+    [SerializeField] private float detectionRadius = 25f;
+    [SerializeField] private float attackRadius = 4.5f;
+    [SerializeField] private float contactRadius = 4.2f;
 
     [Header("Patrol Settings")]
     [SerializeField] private Transform[] patrolPoints;
@@ -21,9 +22,11 @@ public class EnemyAI : MonoBehaviour
     private bool isWaitingAtPoint;
 
     [Header("Attack Settings")]
-    [SerializeField] private float attackCooldown = 1.5f;
-    [SerializeField] private float attackDamage = 15f;
+    [SerializeField] private float attackCooldown = 1.0f;
+    [SerializeField] private float contactDamageCooldown = 0.8f;
+    [SerializeField] private float attackDamage = 20f;
     private bool isAttacking = false;
+    private float lastContactDamageTime = -10f;
 
     private NavMeshAgent agent;
     private Transform playerTransform;
@@ -56,7 +59,16 @@ public class EnemyAI : MonoBehaviour
 
     private void Update()
     {
-        // SEGURIDAD: Si el agente no está en el NavMesh, no ejecutamos lógica de IA para evitar errores
+                if (playerTransform == null)
+        {
+            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+            if (playerObj != null)
+            {
+                playerTransform = playerObj.transform;
+                healthSystemPlayer = playerObj.GetComponent<HealthSystem>() ?? playerObj.GetComponentInChildren<HealthSystem>();
+            }
+        }
+
         if (agent == null || !agent.enabled || !agent.isOnNavMesh) return;
 
         if (isStunned || playerTransform == null || (healthSystemPlayer != null && healthSystemPlayer.IsDead))
@@ -65,7 +77,15 @@ public class EnemyAI : MonoBehaviour
             return;
         }
 
-        float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position);
+        Vector3 diff = playerTransform.position - transform.position;
+        float distanceToPlayer = Mathf.Sqrt(diff.x * diff.x + diff.z * diff.z);
+        float verticalDist = Mathf.Abs(diff.y);
+
+        // DAÑO POR CONTACTO: Si el enemigo toca físicamente al jugador (por distancia)
+        if (distanceToPlayer <= contactRadius && verticalDist <= 5.5f)
+        {
+            ApplyContactDamage(playerTransform.gameObject);
+        }
 
         switch (currentState)
         {
@@ -93,7 +113,6 @@ public class EnemyAI : MonoBehaviour
             return;
         }
 
-        // Verificación adicional de seguridad antes de leer remainingDistance
         if (!agent.pathPending && agent.isOnNavMesh && agent.remainingDistance <= agent.stoppingDistance)
         {
             if (!isWaitingAtPoint)
@@ -111,15 +130,13 @@ public class EnemyAI : MonoBehaviour
             agent.SetDestination(playerTransform.position);
         }
 
-        // Transicion Ataque
         if (distanceToPlayer <= attackRadius)
         {
             currentState = AIState.Attack;
             return;
         }
 
-        // Si el jugador se escapa del radio de deteccion, vuelve a patrullar
-        if (distanceToPlayer > detectionRadius * 1.2f)
+            if (distanceToPlayer > detectionRadius * 1.2f)
         {
             currentState = AIState.Patrol;
             GoToNextPatrolPoint();
@@ -130,8 +147,8 @@ public class EnemyAI : MonoBehaviour
     {
         transform.LookAt(new Vector3(playerTransform.position.x, transform.position.y, playerTransform.position.z));
 
-        // Transicion de regreso a Persecucion si se aleja
-        if (distanceToPlayer > attackRadius && !isAttacking)
+        
+        if (distanceToPlayer > attackRadius * 1.3f && !isAttacking)
         {
             currentState = AIState.Chase;
             return;
@@ -157,11 +174,76 @@ public class EnemyAI : MonoBehaviour
 
     private void ExecuteAttack()
     {
+        if (healthSystemPlayer == null && playerTransform != null)
+        {
+            healthSystemPlayer = playerTransform.GetComponent<HealthSystem>() ?? playerTransform.GetComponentInChildren<HealthSystem>();
+        }
+
         if (healthSystemPlayer != null && !healthSystemPlayer.IsDead)
         {
+            lastContactDamageTime = Time.time;
             healthSystemPlayer.TakeDamage(attackDamage);
             Debug.Log($"¡El enemigo atacó al jugador causándole {attackDamage} de daño!");
         }
+    }
+
+    public void ApplyContactDamage(GameObject target)
+    {
+        if (isStunned) return;
+        if (Time.time - lastContactDamageTime < contactDamageCooldown) return;
+
+        if (healthSystemPlayer == null && target != null)
+        {
+            healthSystemPlayer = target.GetComponent<HealthSystem>() ?? target.GetComponentInChildren<HealthSystem>() ?? target.GetComponentInParent<HealthSystem>();
+        }
+
+        if (healthSystemPlayer != null && !healthSystemPlayer.IsDead)
+        {
+            lastContactDamageTime = Time.time;
+            healthSystemPlayer.TakeDamage(attackDamage);
+            Debug.Log($"<color=red>¡El enemigo tocó al jugador y le infligió {attackDamage} de daño!</color>");
+
+            if (currentState == AIState.Patrol)
+            {
+                currentState = AIState.Attack;
+            }
+        }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (IsPlayer(other.gameObject)) ApplyContactDamage(other.gameObject);
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        if (IsPlayer(other.gameObject)) ApplyContactDamage(other.gameObject);
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (IsPlayer(collision.gameObject)) ApplyContactDamage(collision.gameObject);
+    }
+
+    private void OnCollisionStay(Collision collision)
+    {
+        if (IsPlayer(collision.gameObject)) ApplyContactDamage(collision.gameObject);
+    }
+
+    private void OnControllerColliderHit(ControllerColliderHit hit)
+    {
+        if (IsPlayer(hit.gameObject)) ApplyContactDamage(hit.gameObject);
+    }
+
+    private bool IsPlayer(GameObject obj)
+    {
+        if (obj == null) return false;
+        return obj.CompareTag("Player") || (obj.transform.root != null && obj.transform.root.CompareTag("Player"));
+    }
+
+    public void OnAttackedByPlayer()
+    {
+        currentState = AIState.Chase;
     }
 
     private IEnumerator WaitAndMoveToNextPoint()
@@ -190,11 +272,9 @@ public class EnemyAI : MonoBehaviour
 
     private void OnDrawGizmosSelected()
     {
-        // Radio de deteccion (Amarillo)
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, detectionRadius);
 
-        // Radio de ataque (Rojo)
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, attackRadius);
     }

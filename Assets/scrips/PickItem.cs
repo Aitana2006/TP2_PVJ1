@@ -3,19 +3,57 @@ using UnityEngine;
 public class PickItem : MonoBehaviour
 {
     [Header("Manos del Personaje")]
-    [SerializeField] private Transform rightHand; // Para armas ("Weapon")
-    [SerializeField] private Transform leftHand;  // Para ítems ("Item")
+    [SerializeField] private Transform rightHand;
+    [SerializeField] private Transform leftHand;  
 
-    // Variables para controlar cada mano de forma independiente
     private GameObject currentLeftItem = null;
     private GameObject currentRightItem = null;
 
-    // Referencia opcional al script de ataque
     private Attack attackScript;
 
     private void Awake()
     {
         attackScript = GetComponent<Attack>();
+    }
+
+    private void Update()
+    {
+ 
+        if (Input.GetKeyDown(KeyCode.E))
+        {
+            Collider[] colliders = Physics.OverlapSphere(transform.position, 2.5f);
+            foreach (var col in colliders)
+            {
+                if (col.CompareTag("Item") && currentLeftItem == null)
+                {
+                    Pick(col.gameObject, leftHand, true);
+                    break;
+                }
+                else if (col.CompareTag("Weapon") && currentRightItem == null)
+                {
+                    Pick(col.gameObject, rightHand, false);
+                    break;
+                }
+            }
+        }
+
+        if (Input.GetKeyDown(KeyCode.Q))
+        {
+            GameObject dropped = DropItem();
+            if (dropped != null)
+            {
+                dropped.transform.SetParent(null);
+                Rigidbody rb = dropped.GetComponent<Rigidbody>();
+                Collider col = dropped.GetComponent<Collider>();
+                if (rb != null)
+                {
+                    rb.isKinematic = false;
+                    rb.useGravity = true;
+                }
+                if (col != null) col.enabled = true;
+                Debug.Log($"Soltaste {dropped.name}");
+            }
+        }
     }
 
     private void OnTriggerStay(Collider other)
@@ -24,7 +62,7 @@ public class PickItem : MonoBehaviour
         {
             if (other.CompareTag("Item"))
             {
-                // Si la mano izquierda está libre, agarramos el ítem
+
                 if (currentLeftItem == null)
                 {
                     Pick(other.gameObject, leftHand, true);
@@ -36,7 +74,7 @@ public class PickItem : MonoBehaviour
             }
             else if (other.CompareTag("Weapon"))
             {
-                // Si la mano derecha está libre, agarramos el arma
+
                 if (currentRightItem == null)
                 {
                     Pick(other.gameObject, rightHand, false);
@@ -57,7 +95,6 @@ public class PickItem : MonoBehaviour
             return;
         }
 
-        // Asignamos el objeto a la mano correspondiente
         if (isLeftHand)
         {
             currentLeftItem = item;
@@ -66,19 +103,16 @@ public class PickItem : MonoBehaviour
         {
             currentRightItem = item;
 
-            // Si es un arma, le avisamos automáticamente al script Attack que la equipe
             if (attackScript != null)
             {
                 attackScript.EquipWeapon(item.transform);
             }
         }
 
-        // Emparentar y acomodar en la mano
         item.transform.SetParent(targetHand);
         item.transform.localPosition = Vector3.zero;
         item.transform.localRotation = Quaternion.identity;
 
-        // Desactivar físicas y colisiones mientras se lleva equipado
         Rigidbody rb = item.GetComponent<Rigidbody>();
         Collider col = item.GetComponent<Collider>();
 
@@ -86,21 +120,19 @@ public class PickItem : MonoBehaviour
         if (col != null) col.enabled = false;
     }
 
-    // Método de compatibilidad general para que GoalZone.cs no dé error
     public GameObject DropItem()
     {
-        if (currentRightItem != null)
-        {
-            return DropRightItem();
-        }
-        else if (currentLeftItem != null)
+        if (currentLeftItem != null)
         {
             return DropLeftItem();
+        }
+        else if (currentRightItem != null)
+        {
+            return DropRightItem();
         }
         return null;
     }
 
-    // Métodos para soltar por separado si los necesitas en el futuro
     public GameObject DropLeftItem()
     {
         GameObject temp = currentLeftItem;
@@ -113,7 +145,6 @@ public class PickItem : MonoBehaviour
         GameObject temp = currentRightItem;
         currentRightItem = null;
 
-        // Opcional: si suelta el arma, le avisamos al script Attack que ya no tiene espada
         if (attackScript != null)
         {
             attackScript.EquipWeapon(null);

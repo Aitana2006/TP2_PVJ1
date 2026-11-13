@@ -75,7 +75,10 @@ public class Attack : MonoBehaviour
 
         if (Physics.Raycast(origin, dir, out hit, rayDistance))
         {
-            AplyDamage(hit.collider.gameObject);
+            if (hit.collider.gameObject != this.gameObject)
+            {
+                AplyDamage(hit.collider.gameObject);
+            }
         }
         StartCoroutine(AttackCooldown());
     }
@@ -96,7 +99,7 @@ public class Attack : MonoBehaviour
         {
             foreach (Collider col in colliders)
             {
-                if (col.gameObject.CompareTag("Character") || col.gameObject.CompareTag("Player"))
+                if (col.gameObject != this.gameObject)
                 {
                     AplyDamage(col.gameObject);
                 }
@@ -112,33 +115,29 @@ public class Attack : MonoBehaviour
 
     IEnumerator AttackCooldown()
     {
-        float currentvelocidadMovimiento = 0f;
-        if (isPlayer)
-        {
-            currentvelocidadMovimiento = pM.velocidadMovimiento;
-            pM.velocidadMovimiento = 0f;
-            canAttack = false;
-
-            yield return new WaitForSeconds(cooldownAttack);
-
-            pM.velocidadMovimiento = currentvelocidadMovimiento;
-            canAttack = true;
-        }
+        canAttack = false;
+        yield return new WaitForSeconds(cooldownAttack > 0f ? cooldownAttack : 0.4f);
+        canAttack = true;
     }
 
     private void AplyDamage(GameObject hitObj)
     {
-        if ((hitObj.CompareTag("Player") || hitObj.CompareTag("Character")) && hitObj != null)
-        {
-            hitObj.GetComponent<HealthSystem>().TakeDamage(damage);
-            isCharacter = true;
+        if (hitObj == null || hitObj == this.gameObject) return;
 
-            Debug.Log($"<color=green>¡IMPACTO! Golpes a {hitObj.name} causándole {damage} de daño.</color>");
-        }
-        else
+        bool targetValid = isPlayer ? hitObj.CompareTag("Character") : hitObj.CompareTag("Player");
+        if (targetValid)
         {
-            isCharacter = false;
+            HealthSystem hs = hitObj.GetComponent<HealthSystem>();
+            if (hs != null)
+            {
+                hs.TakeDamage(damage);
+                isCharacter = true;
+                Debug.Log($"<color=green>¡IMPACTO! Golpes a {hitObj.name} causándole {damage} de daño.</color>");
+                return;
+            }
         }
+
+        isCharacter = false;
     }
 
     private void RaycastInfo(Vector3 offset)
